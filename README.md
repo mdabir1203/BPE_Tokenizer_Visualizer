@@ -42,6 +42,11 @@ A React application that visualizes the process of tokenization and merging in t
 - Click "Auto Play" to automatically perform merges at the set interval.
 - Use the buttons to switch between different views.
 
+## Demo 
+
+https://github.com/mdabir1203/BPE_Tokenizer_Visualizer-/assets/66947064/24b9c518-373a-4166-8a88-772f87ebdbba
+
+
 ## License
 
 This project is licensed under the MIT License.
