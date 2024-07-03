@@ -57,7 +57,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const TokenizerMasterVisualizer = () => {
-  const [text, setText] = useState("The quick brown fox jumps over the lazy dog.");
+  const [text, setText] = useState("Who let the dogs out? .");
   const [tokens, setTokens] = useState([]);
   const [merges, setMerges] = useState({});
   const [step, setStep] = useState(0);
