@@ -40,7 +40,6 @@ Breaks down text into smaller units (tokens) like words, subwords, or characters
 
 2. Normalization
 Standardizes text by:
-
 Lowercasing
 Removing punctuation
 Expanding contractions
