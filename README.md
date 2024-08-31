@@ -69,7 +69,7 @@ Contributions are welcome! If you have suggestions for improvements or new featu
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the [[LICENSE](https://github.com/mdabir1203/BPE_Tokenizer_Visualizer/blob/master/LICENSE.md)] file for details.
 
 ## Acknowledgments
 
