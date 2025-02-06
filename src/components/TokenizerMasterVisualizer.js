@@ -1,8 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { HelpCircle, Play, Pause, ChevronRight, RotateCw, Eye } from 'lucide-react';
 
-const useDebounce = (fn: Function, delay: number) => {
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+// Constants
+const MAX_STEPS = 20;
+const DEFAULT_SPEED = 1000;
+const MIN_SPEED = 100;
+const MAX_SPEED = 2000;
+
+// Custom hook for debouncing
+const useDebounce = (fn, delay) => {
+  const timeoutRef = useRef();
 
   useEffect(() => {
     return () => {
@@ -10,75 +18,70 @@ const useDebounce = (fn: Function, delay: number) => {
     };
   }, []);
 
-  return useCallback((...args: any[]) => {
+  return useCallback((...args) => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => fn(...args), delay);
   }, [fn, delay]);
 };
 
-// Constants and Types
-const MAX_STEPS = 20;
-const DEFAULT_SPEED = 1000;
-const MIN_SPEED = 100;
-const MAX_SPEED = 2000;
-
-interface Token {
-  char: string;
-  id: number;
-  frequency?: number;
-  metadata?: Record<string, unknown>;
-}
-
-interface MergeHistory {
-  tokens: Token[];
-  compressionRatio: number;
-  timestamp: number;
-}
-
-interface StatsProps {
-  stats: Record<string, number | string>;
-}
-
-// Components
-const TokenDisplay: React.FC<{token: Token; onHover: (t: Token) => void}> = React.memo(({ token, onHover }) => (
-  <span 
-    className="inline-block px-2 py-1 m-1 rounded-lg transition-transform duration-200 hover:scale-105 cursor-pointer"
-    style={{
-      backgroundColor: `hsl(${token.id % 360}, 70%, 80%)`,
-      fontSize: `${Math.min(20, 12 + token.char.length * 2)}px`,
-    }}
+const TokenDisplay = React.memo(({ token, onHover }) => (
+  <div 
+    className="group relative transform transition-all duration-300 hover:scale-110"
     onMouseEnter={() => onHover(token)}
     role="button"
     tabIndex={0}
-    aria-label={`Token ${token.char} with ID ${token.id}`}
+    aria-label={`Token ${token.char} with frequency ${token.frequency}`}
   >
-    {token.char}
-  </span>
+    <div className="absolute inset-0 bg-blue-500 rounded-xl transform rotate-3 translate-x-1 translate-y-1 group-hover:rotate-6 transition-transform" />
+    <div 
+      className="relative p-3 rounded-xl shadow-lg transform transition-transform bg-white border-2 border-gray-200 hover:-translate-y-1"
+      style={{
+        backgroundColor: `hsl(${token.id % 360}, 70%, 95%)`,
+      }}
+    >
+      <span className="text-lg font-semibold">{token.char}</span>
+      {token.frequency && (
+        <span className="absolute -top-2 -right-2 bg-blue-500 text-white rounded-full px-2 py-1 text-xs">
+          {token.frequency}
+        </span>
+      )}
+    </div>
+  </div>
 ));
 
-const StatsPanel: React.FC<StatsProps> = ({ stats }) => (
-  <div className="grid grid-cols-2 gap-4 p-4 bg-white rounded-lg shadow">
+const InfoBox = ({ title, children }) => (
+  <div className="relative p-6 bg-white rounded-xl shadow-lg border-2 border-gray-100">
+    <div className="absolute -top-3 left-4 bg-blue-500 text-white px-3 py-1 rounded-full text-sm">
+      {title}
+    </div>
+    {children}
+  </div>
+);
+
+const StatsPanel = ({ stats }) => (
+  <div className="space-y-2">
     {Object.entries(stats).map(([key, value]) => (
-      <div key={key} className="flex justify-between">
-        <span className="font-medium">{key}:</span>
-        <span>{typeof value === 'number' ? value.toFixed(2) : value}</span>
+      <div key={key} className="flex justify-between items-center">
+        <span className="text-gray-600">{key}:</span>
+        <span className="font-semibold">
+          {typeof value === 'number' ? value.toFixed(2) : value}
+        </span>
       </div>
     ))}
   </div>
 );
 
-const TokenizerMasterVisualizer: React.FC = () => {
-  const [text, setText] = useState("কে নিলো কাকে ? ");
-  const [tokens, setTokens] = useState<Token[]>([]);
-  const [mergeHistory, setMergeHistory] = useState<MergeHistory[]>([]);
+const TokenizerMasterVisualizer = () => {
+  const [text, setText] = useState("কে নিলো কাকে ?");
+  const [tokens, setTokens] = useState([]);
+  const [mergeHistory, setMergeHistory] = useState([]);
   const [step, setStep] = useState(0);
   const [view, setView] = useState('tokens');
   const [autoPlay, setAutoPlay] = useState(false);
   const [speed, setSpeed] = useState(DEFAULT_SPEED);
-  const [selectedToken, setSelectedToken] = useState<Token | null>(null);
+  const [selectedToken, setSelectedToken] = useState(null);
 
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
-  const containerRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef();
 
   const initialize = useCallback(() => {
     const initialTokens = text.split('').map(char => ({ 
@@ -96,8 +99,8 @@ const TokenizerMasterVisualizer: React.FC = () => {
     setStep(0);
   }, [text]);
 
-  const findOptimalMerge = useCallback((currentTokens: Token[]) => {
-    const frequencies = new Map<string, number>();
+  const findOptimalMerge = useCallback((currentTokens) => {
+    const frequencies = new Map();
     
     for (let i = 0; i < currentTokens.length - 1; i++) {
       const pair = `${currentTokens[i].char}${currentTokens[i + 1].char}`;
@@ -117,7 +120,7 @@ const TokenizerMasterVisualizer: React.FC = () => {
     return { pair: optimalPair, frequency: maxFreq };
   }, []);
 
-  const debouncedTextUpdate = useDebounce((newText: string) => {
+  const debouncedTextUpdate = useDebounce((newText) => {
     setText(newText);
     initialize();
   }, 300);
@@ -130,7 +133,7 @@ const TokenizerMasterVisualizer: React.FC = () => {
       if (!pair || !frequency) return prevTokens;
 
       const newId = Math.max(...prevTokens.map(t => t.id)) + 1;
-      const newTokens: Token[] = [];
+      const newTokens = [];
       let i = 0;
 
       while (i < prevTokens.length) {
@@ -183,7 +186,7 @@ const TokenizerMasterVisualizer: React.FC = () => {
   }), [step, tokens, text]);
 
   const chartData = useMemo(() => ({
-    merges: Object.entries(tokens.reduce((acc: Record<string, number>, token) => {
+    merges: Object.entries(tokens.reduce((acc, token) => {
       if (token.frequency) acc[token.char] = token.frequency;
       return acc;
     }, {})),
@@ -194,112 +197,134 @@ const TokenizerMasterVisualizer: React.FC = () => {
   }), [tokens, mergeHistory]);
 
   return (
-    <div ref={containerRef} className="p-6 bg-gray-100 rounded-lg shadow-lg">
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold text-center">Tokenizer Master</h1>
-        <div className="relative mt-4">
-          <input 
-            type="text"
-            value={text}
-            onChange={e => debouncedTextUpdate(e.target.value)}
-            className="w-full p-3 border rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
-            aria-label="Input text for tokenization"
-          />
-        </div>
-      </header>
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-8">
+      <div className="max-w-6xl mx-auto">
+        <header className="mb-8 text-center">
+          <h1 className="text-4xl font-bold text-gray-800 mb-4">Tokenizer Master</h1>
+          <p className="text-gray-600 max-w-2xl mx-auto">
+            Visualize how text gets broken down into tokens and merged back together.
+            Watch the compression ratio improve with each merge step.
+          </p>
+        </header>
 
-      <main>
-        <div className="flex gap-4 mb-6">
-          <button
-            onClick={performMerge}
-            disabled={step >= MAX_STEPS}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg disabled:opacity-50"
-          >
-            Merge
-          </button>
-          <button
-            onClick={() => setAutoPlay(!autoPlay)}
-            className={`px-4 py-2 rounded-lg ${autoPlay ? 'bg-red-600' : 'bg-blue-600'} text-white`}
-          >
-            {autoPlay ? 'Stop' : 'Play'}
-          </button>
-          <input
-            type="range"
-            min={MIN_SPEED}
-            max={MAX_SPEED}
-            value={speed}
-            onChange={e => setSpeed(Number(e.target.value))}
-            className="flex-grow"
-          />
+        <div className="mb-8">
+          <InfoBox title="Input">
+            <div className="relative">
+              <input 
+                type="text"
+                value={text}
+                onChange={e => debouncedTextUpdate(e.target.value)}
+                className="w-full p-4 rounded-lg border-2 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                placeholder="Enter text to tokenize..."
+                aria-label="Input text for tokenization"
+              />
+              <HelpCircle className="absolute right-4 top-4 text-gray-400" />
+            </div>
+          </InfoBox>
         </div>
 
-        <div className="mb-6">
-          <div className="flex justify-center gap-4 mb-4">
-            <button 
-              onClick={() => setView('tokens')} 
-              className={`px-4 py-2 rounded-lg ${view === 'tokens' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
-            >
-              Tokens
-            </button>
-            <button 
-              onClick={() => setView('merges')} 
-              className={`px-4 py-2 rounded-lg ${view === 'merges' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
-            >
-              Merges
-            </button>
-            <button 
-              onClick={() => setView('compression')} 
-              className={`px-4 py-2 rounded-lg ${view === 'compression' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
-            >
-              Compression
-            </button>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <InfoBox title="Controls">
+            <div className="flex flex-col gap-4">
+              <button
+                onClick={performMerge}
+                disabled={step >= MAX_STEPS}
+                className="flex items-center justify-center gap-2 p-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg shadow-lg disabled:opacity-50 hover:from-blue-600 hover:to-blue-700 transition-colors"
+              >
+                <ChevronRight />
+                Merge Tokens
+              </button>
+              <button
+                onClick={() => setAutoPlay(!autoPlay)}
+                className={`flex items-center justify-center gap-2 p-3 rounded-lg shadow-lg text-white transition-colors
+                  ${autoPlay ? 'bg-gradient-to-r from-red-500 to-red-600' : 'bg-gradient-to-r from-green-500 to-green-600'}`}
+              >
+                {autoPlay ? <Pause /> : <Play />}
+                {autoPlay ? 'Stop' : 'Play Animation'}
+              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Speed:</span>
+                <input
+                  type="range"
+                  min={MIN_SPEED}
+                  max={MAX_SPEED}
+                  value={speed}
+                  onChange={e => setSpeed(Number(e.target.value))}
+                  className="flex-grow"
+                />
+              </div>
+            </div>
+          </InfoBox>
+
+          <InfoBox title="Statistics">
+            <StatsPanel stats={stats} />
+          </InfoBox>
+
+          <InfoBox title="Selected Token">
+            {selectedToken ? (
+              <div className="space-y-2">
+                <p className="text-lg font-semibold">{selectedToken.char}</p>
+                <p className="text-sm text-gray-600">ID: {selectedToken.id}</p>
+                <p className="text-sm text-gray-600">Frequency: {selectedToken.frequency}</p>
+              </div>
+            ) : (
+              <p className="text-gray-500">Hover over a token to see details</p>
+            )}
+          </InfoBox>
+        </div>
+
+        <div className="mb-8">
+          <div className="flex justify-center gap-4 mb-6">
+            {['tokens', 'merges', 'compression'].map((viewType) => (
+              <button 
+                key={viewType}
+                onClick={() => setView(viewType)}
+                className={`flex items-center gap-2 px-6 py-3 rounded-lg shadow-md transition-all
+                  ${view === viewType 
+                    ? 'bg-blue-500 text-white transform -translate-y-1' 
+                    : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              >
+                <Eye size={18} />
+                {viewType.charAt(0).toUpperCase() + viewType.slice(1)}
+              </button>
+            ))}
           </div>
 
-          {view === 'tokens' && (
-            <div className="p-4 bg-white rounded-lg min-h-[100px]">
-              {tokens.map((token, idx) => (
-                <TokenDisplay
-                  key={`${token.id}-${idx}`}
-                  token={token}
-                  onHover={setSelectedToken}
-                />
-              ))}
-            </div>
-          )}
-          {view === 'merges' && (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData.merges}>
-                <XAxis dataKey="0" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="1" fill="#8884d8" />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-          {view === 'compression' && (
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={chartData.compression}>
-                <XAxis dataKey="step" />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="ratio" stroke="#82ca9d" />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
+          <div className="bg-white rounded-xl shadow-lg p-6 min-h-[400px]">
+            {view === 'tokens' && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {tokens.map((token, idx) => (
+                  <TokenDisplay
+                    key={`${token.id}-${idx}`}
+                    token={token}
+                    onHover={setSelectedToken}
+                  />
+                ))}
+              </div>
+            )}
+            {view === 'merges' && (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={chartData.merges}>
+                  <XAxis dataKey="0" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="1" fill="#3B82F6" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+            {view === 'compression' && (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={chartData.compression}>
+                  <XAxis dataKey="step" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="ratio" stroke="#3B82F6" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <StatsPanel stats={stats} />
-          {selectedToken && (
-            <div className="p-4 bg-white rounded-lg">
-              <h3 className="font-bold">Token Details</h3>
-              <pre className="mt-2 text-sm">
-                {JSON.stringify(selectedToken, null, 2)}
-              </pre>
-            </div>
-          )}
-        </div>
-      </main>
+      </div>
     </div>
   );
 };
